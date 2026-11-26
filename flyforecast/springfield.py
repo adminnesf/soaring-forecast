@@ -91,8 +91,8 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <p class="blend-note" id="blend-note" hidden>Equal-weight median by hour. Only available values contribute. Wind direction uses a circular mean. The count beside each hour is the number of models with an hourly profile.</p>
 <p class="chart-legend" id="chart-legend" hidden>Shaded area shows the lowest to highest model estimate. The line is the median.</p>
 <div class="charts">
-<figure class="chart panel"><h2>Modeled top of lift</h2><p>Feet above ground level</p><canvas id="lift-chart" role="img" aria-label="Modeled top of lift by local hour. Values are available in the hourly table."></canvas></figure>
-<figure class="chart panel"><h2>Thermal strength · W*</h2><p>Feet per minute of convective velocity</p><canvas id="thermal-chart" role="img" aria-label="Modeled thermal strength by local hour. Values are available in the hourly table."></canvas></figure>
+<figure class="chart panel"><h2>Modeled top of lift</h2><p>Feet above ground level</p><canvas id="lift-chart" role="img" aria-label="Modeled top of lift by local hour. Values are available in the hourly table."></canvas><p id="lift-band-note" hidden>Narrower shading means closer model agreement.</p></figure>
+<figure class="chart panel"><h2>Thermal strength · W*</h2><p>Feet per minute of convective velocity</p><canvas id="thermal-chart" role="img" aria-label="Modeled thermal strength by local hour. Values are available in the hourly table."></canvas><p id="thermal-band-note" hidden>Narrower shading means closer model agreement.</p></figure>
 </div>
 <section class="panel" aria-labelledby="hourly-title">
 <div class="table-head"><h2 id="hourly-title">Hourly forecast</h2></div>
@@ -352,7 +352,9 @@ async function loadForecast() {
       .map(series => series.filter(row => row.time.startsWith(day.value)));
     const windowHours = updateThermalWindow(rows, daySeries, isBlend);
     byId('blend-note').hidden = !isBlend;
-    byId('chart-legend').hidden = !isBlend || !rows.some(row => row.spread?.lift_agl || row.spread?.wstar_fpm);
+    byId('lift-band-note').hidden = !isBlend || !rows.some(row => row.spread?.lift_agl);
+    byId('thermal-band-note').hidden = !isBlend || !rows.some(row => row.spread?.wstar_fpm);
+    byId('chart-legend').hidden = byId('lift-band-note').hidden && byId('thermal-band-note').hidden;
     renderCharts();
     showPeak('lift', rows, 'lift_agl', 'ft');
     showPeak('thermal', rows, 'wstar_fpm', 'fpm');
