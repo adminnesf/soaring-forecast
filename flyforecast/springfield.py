@@ -85,6 +85,11 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 </figure>
 </div></header>
 <main class="wrap">
+<aside id="wave-heads-up" class="panel" aria-label="Mountain wave heads-up" hidden style="position:fixed;z-index:5;right:16px;bottom:16px;box-sizing:border-box;width:min(390px,calc(100% - 32px));padding:14px 16px;border:2px solid #49a597;box-shadow:0 6px 24px #142e3933;background:#fff">
+<p id="wave-message" role="status" style="margin:0 0 8px"></p>
+<p style="margin:0 0 8px;font-size:.9rem">Check wave and rotor guidance in your <a href="https://aviationweather.gov/">aviation weather briefing</a>.</p>
+<button id="wave-dismiss" type="button">Dismiss</button>
+</aside>
 <section class="thermal-window panel" aria-labelledby="outlook-title">
 <h2 id="outlook-title">Local soaring outlook at KVSF</h2>
 <p id="outlook-date" class="blend-note"></p>
@@ -371,6 +376,47 @@ function updateSounding(models, selectedModel, selectedDay, windowHours) {
   detail.hidden = false;
 }
 
+const dismissedWaveDays = new Set();
+
+function supportsWave(profile) {
+  // Approximate the crest band west of KVSF with the airport model profile.
+  // This screens for westerly cross-ridge flow and a stable near-crest layer.
+  const crestMeters = 1000;
+  const winds = profile.filter(point => Number.isFinite(point.z) && Number.isFinite(point.ws) && Number.isFinite(point.wd));
+  const crest = winds.reduce((nearest, point) => !nearest || Math.abs(point.z - crestMeters) < Math.abs(nearest.z - crestMeters) ? point : nearest, null);
+  if (!crest || Math.abs(crest.z - crestMeters) > 350 || crest.ws / 1.15078 < 20 || crest.wd < 240 || crest.wd > 300) return false;
+  return profile.some((upper, index) => {
+    if (!index) return false;
+    const lower = profile[index - 1];
+    const depth = upper.z - lower.z;
+    const midpoint = (lower.z + upper.z) / 2;
+    return depth >= 100 && depth <= 900 && Math.abs(midpoint - crestMeters) <= 350 &&
+      Number.isFinite(lower.t) && Number.isFinite(upper.t) && (lower.t - upper.t) * 1000 / depth <= 3;
+  });
+}
+
+function updateWaveHeadsUp(models, day, dateLabel) {
+  const popup = byId('wave-heads-up');
+  popup.hidden = true;
+  if (dismissedWaveDays.has(day)) return;
+  const support = new Map();
+  for (const rows of Object.values(models)) {
+    const matchingHours = new Set(rows.filter(row => row.time.startsWith(day) &&
+      row.time.slice(11, 16) >= '08:00' && row.time.slice(11, 16) <= '18:00' &&
+      Array.isArray(row.profile) && supportsWave(row.profile)).map(row => row.time));
+    for (const time of matchingHours) support.set(time, (support.get(time) || 0) + 1);
+  }
+  const first = [...support.keys()].sort().find(time => support.get(time) >= 3);
+  if (!first) return;
+  byId('wave-message').textContent = 'Possible mountain wave conditions near KVSF on ' + dateLabel +
+    ' around ' + first.slice(11, 16) + ' Eastern. ' + support.get(first) + ' models show favorable wind and stability.';
+  byId('wave-dismiss').onclick = () => {
+    dismissedWaveDays.add(day);
+    popup.hidden = true;
+  };
+  popup.hidden = false;
+}
+
 function updateLocalOutlook(best, rows, dateLabel, modelName, isBlend) {
   const number = value => Math.round(value).toLocaleString('en-US');
   const clock = time => {
@@ -554,6 +600,7 @@ async function loadForecast() {
     updateLocalOutlook(best, rows, dateLabel, isBlend ? 'Blended forecast' : modelLabel(model.value), isBlend);
     const windowHours = updateThermalWindow(best, rows, isBlend);
     updateSounding(data.models, model.value, day.value, windowHours);
+    updateWaveHeadsUp(data.models, day.value, dateLabel);
     byId('blend-note').hidden = !isBlend;
     byId('lift-band-note').hidden = !isBlend || !rows.some(row => row.spread?.lift_agl);
     byId('thermal-band-note').hidden = !isBlend || !rows.some(row => row.spread?.wstar_fpm);
