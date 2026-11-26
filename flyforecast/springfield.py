@@ -80,8 +80,8 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <p class="updated"><strong>Weather refresh schedule.</strong> The site checks for new weather data Wednesday through Saturday at 6:41 a.m., 12:41 p.m., and 6:41 p.m. EST, and Sunday at 6:41 a.m. and 12:41 p.m. EST. During daylight saving time, checks run one hour later. The timestamp above shows when this forecast was generated.</p>
 </div>
 <figure class="ranger-portrait">
-<img id="ranger-banner" src="business-ranger-studio.jpg" width="560" height="560" alt="Business Ranger, a cream-colored dog in a suit and tie">
-<figcaption><strong>Business Ranger</strong><small>KVSF weather dog</small></figcaption>
+<img id="ranger-banner" src="business-ranger-studio.jpg" width="560" height="560" alt="Weather Ranger, a cream-colored dog in a suit and tie">
+<figcaption><strong>Weather Ranger</strong><small>KVSF weather dog</small></figcaption>
 </figure>
 </div></header>
 <main class="wrap">
@@ -453,7 +453,7 @@ function updateRangerBanner(blend) {
   const weatherPortrait = new Image();
   weatherPortrait.onload = () => {
     portrait.src = weatherPortrait.src;
-    portrait.alt = windy ? 'Business Ranger being swept sideways by the wind' : 'Business Ranger holding an umbrella in the rain';
+    portrait.alt = windy ? 'Weather Ranger being swept sideways by the wind' : 'Weather Ranger holding an umbrella in the rain';
   };
   weatherPortrait.src = windy ? 'business-ranger-wind.jpg' : 'business-ranger-rain.jpg';
 }
