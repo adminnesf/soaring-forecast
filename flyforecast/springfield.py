@@ -345,6 +345,8 @@ async function loadForecast() {
     const isBlend = model.value === BLEND;
     const rows = (isBlend ? blend : data.models[model.value]).filter(row => row.time.startsWith(day.value));
     selectedRows = rows;
+    const dateLabel = dayFormat.format(new Date(day.value + 'T12:00:00Z'));
+    byId('window-title').textContent = 'Best thermal window · ' + dateLabel;
     const daySeries = (isBlend ? Object.values(data.models) : [data.models[model.value]])
       .map(series => series.filter(row => row.time.startsWith(day.value)));
     const windowHours = updateThermalWindow(rows, daySeries, isBlend);
