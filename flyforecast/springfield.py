@@ -56,6 +56,8 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 .charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}.chart{padding:16px;margin:0;min-width:0}.chart h2{font-size:1rem;margin:0}.chart p,.chart-legend,.blend-note{font-size:.83rem;color:var(--muted);margin:4px 0 10px}.chart canvas{display:block;width:100%;height:220px}.chart-legend{margin:0 0 12px}.chart-legend::before{content:'';display:inline-block;width:1.25em;height:.75em;background:#bfdfd9;margin-right:.45em;border-radius:3px}.blend-note{margin:0 0 14px}.sample{display:block;font-size:.7rem;color:var(--muted);font-weight:400}@media(max-width:670px){.charts{grid-template-columns:1fr}.chart canvas{height:195px}}
 
 .thermal-window{padding:20px;margin-bottom:18px;border-left:4px solid #49a597}.thermal-window h2{margin:0;font-size:1.08rem}.window-time{font-size:clamp(1.25rem,3vw,1.75rem);font-weight:750;margin:6px 0 2px;letter-spacing:-.035em}.thermal-window p:not(.window-time){font-size:.87rem;color:var(--muted);margin:5px 0}.thermal-window details{font-size:.83rem;color:var(--muted);margin-top:8px}.thermal-window summary{cursor:pointer}.window-hour td:first-child{box-shadow:inset 3px 0 #49a597,1px 0 var(--line)}
+
+.weekend{margin-bottom:18px}.weekend-header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:9px}.weekend-header h2{margin:0;font-size:1.25rem}.weekend-header p,.weekend-card p,.flight-log p{margin:4px 0;color:var(--muted);font-size:.85rem}.weekend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekend-card{padding:15px 17px;border-top:3px solid #49a597}.weekend-card h3{margin:0;font-size:.94rem}.weekend-card .weekend-time{font-size:1.08rem;color:var(--ink);font-weight:700;margin-top:5px}.weekend-card button{background:#e8f2f0;color:var(--teal);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font:inherit;font-size:.82rem;font-weight:700;cursor:pointer;margin-top:8px}.weekend-card button:focus-visible{outline:3px solid #168377;outline-offset:3px}.flight-log{margin-top:18px;padding:14px 17px}.flight-log summary{font-weight:700;cursor:pointer}.flight-log a{display:inline-block;margin-top:5px}@media(max-width:520px){.weekend-grid{gap:8px}.weekend-card{padding:10px}.weekend-card .weekend-time{font-size:1rem}}
 </style>
 </head>
 <body>
@@ -65,11 +67,16 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <p class="updated" id="status" role="status">Loading forecast…</p>
 </div></header>
 <main class="wrap">
+<section class="weekend" id="weekend" aria-labelledby="weekend-title" hidden>
+<div class="weekend-header"><h2 id="weekend-title">Weekend at KVSF</h2><p id="weekend-updated"></p></div>
+<div class="weekend-grid" id="weekend-days"></div>
+</section>
+
 <div class="controls panel"><label>Forecast day<select id="day" disabled></select></label><label>Weather model<select id="model" disabled></select></label></div>
 <p class="notice">Experimental v0.2 · Research estimates only. Use an aviation weather briefing for flight decisions. W* is a convective velocity scale. LCL is an estimate. Ridge and wave forecasts are unavailable.</p>
 <details class="models" id="coverage" hidden><summary id="coverage-label">Model coverage</summary><p id="coverage-detail"></p></details>
 <section class="thermal-window panel" aria-labelledby="window-title">
-<h2 id="window-title">Best thermal window</h2>
+<h2 id="window-title" tabindex="-1">Best thermal window</h2>
 <p id="window-time" class="window-time" role="status">Loading forecast…</p>
 <p id="window-values" hidden></p>
 <p id="window-support" hidden></p>
@@ -92,6 +99,7 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <div class="scroll" tabindex="0" role="region" aria-label="Scrollable hourly forecast table">
 <table><thead><tr><th scope="col">Local time</th><th scope="col">Modeled lift (fpm)</th><th scope="col">Wind kt / true°</th><th scope="col">Rain in</th><th scope="col">CAPE (J/kg)</th></tr></thead><tbody id="rows"></tbody></table>
 </div></section>
+<details class="flight-log panel"><summary>Compare with a KVSF flight</summary><p>Make one entry per flight. Record the forecast you saw before flying, then fill in what you observed. Leave unknown values blank and keep the completed file with your own records.</p><a download="kvsf-flight-log.csv" href="data:text/csv;charset=utf-8,Flight%20date%20(local)%2CTow%20release%20time%20(local)%2CTow%20release%20height%20(ft%20AGL)%2CSustained%20lift%20found%20(yes%2Fno%2Funknown)%2CObserved%20top%20of%20lift%20(ft%20AGL)%2CTime%20lift%20faded%20(local)%2CMinutes%20from%20release%20to%20landing%2CForecast%20updated%20time%20(local)%2CForecast%20window%20(local)%2CForecast%20W-star%20(fpm)%2CForecast%20top%20of%20lift%20(ft%20AGL)%2CNotes%0D%0A">Download flight log template (CSV)</a></details>
 <footer>Weather data from <a href="https://open-meteo.com/">Open-Meteo</a>. Adapted from <a href="https://github.com/tacoleman69/Newengland-flying-forecast">New England Flying Forecast</a>.</footer>
 </main>
 <script>
@@ -239,14 +247,73 @@ function updateThermalWindow(rows, series, isBlend) {
     support.textContent = best.support + ' of ' + best.total + ' available models show positive modeled lift and height in all three hours.';
     support.hidden = false;
   }
-  const rain = best.samples.map(modelHours => modelHours.filter(row => Number.isFinite(row?.rain_in)));
-  const wet = rain.filter(modelHours => modelHours.some(row => row.rain_in > 0)).length;
-  const covered = rain.filter(modelHours => modelHours.length > 0).length;
+  const { wet, covered } = precipitationCoverage(best.samples);
   if (wet) {
     weather.textContent = isBlend ? 'Precipitation appears during the window in ' + wet + ' of ' + covered + ' models with precipitation data.' : 'The selected model shows precipitation during the window.';
     weather.hidden = false;
   }
   return new Set(best.times);
+}
+
+function precipitationCoverage(samples) {
+  const rain = samples.map(hours => hours.filter(row => Number.isFinite(row?.rain_in)));
+  return {
+    covered: rain.filter(hours => hours.length > 0).length,
+    wet: rain.filter(hours => hours.some(row => row.rain_in > 0)).length
+  };
+}
+
+function showWeekend(data, blend, dates) {
+  const localParts = new Intl.DateTimeFormat('en-US', {
+    year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'America/New_York'
+  }).formatToParts(new Date());
+  const local = Object.fromEntries(localParts.map(part => [part.type, part.value]));
+  // Advance calendar dates in UTC after finding today's date in Springfield.
+  const saturday = new Date(Date.UTC(+local.year, +local.month - 1, +local.day));
+  const offset = saturday.getUTCDay() === 0 ? -1 : 6 - saturday.getUTCDay();
+  saturday.setUTCDate(saturday.getUTCDate() + offset);
+  const sunday = new Date(saturday);
+  sunday.setUTCDate(sunday.getUTCDate() + 1);
+  const updated = new Date(data.generated);
+  const ageHours = (Date.now() - updated.getTime()) / 3600000;
+  byId('weekend-updated').textContent = 'Run issued ' + runFormat.format(updated) + (ageHours >= 24 ? ' · over 24 hours old' : '');
+  const number = value => Math.round(value).toLocaleString('en-US');
+  for (const date of [saturday, sunday]) {
+    const key = date.toISOString().slice(0, 10);
+    const dayRows = rows => rows.filter(row => row.time.startsWith(key));
+    const report = windowForecast(dayRows(blend), Object.values(data.models).map(dayRows));
+    const card = document.createElement('article');
+    card.className = 'weekend-card panel';
+    const title = card.appendChild(document.createElement('h3'));
+    title.textContent = dayFormat.format(date);
+    const time = card.appendChild(document.createElement('p'));
+    time.className = 'weekend-time';
+    time.textContent = report ? report.times[0].slice(11, 16) + '–' + report.times[2].slice(11, 16) + ' local'
+      : dates.includes(key) ? 'No clear thermal window' : 'Forecast not available';
+    if (report) {
+      const averages = card.appendChild(document.createElement('p'));
+      averages.textContent = number(report.lift) + ' fpm W* · ' + number(report.height) + ' ft AGL';
+      const agreement = card.appendChild(document.createElement('p'));
+      agreement.textContent = report.support + ' of ' + report.total + ' models show lift in all three hours';
+      const { wet, covered } = precipitationCoverage(report.samples);
+      const rain = card.appendChild(document.createElement('p'));
+      rain.textContent = covered ? 'Precipitation: ' + wet + ' of ' + covered + ' models during the window' : 'Precipitation data unavailable';
+    }
+    if (dates.includes(key)) {
+      const detail = card.appendChild(document.createElement('button'));
+      detail.type = 'button';
+      detail.textContent = 'View ' + (date === saturday ? 'Saturday' : 'Sunday') + ' details';
+      detail.addEventListener('click', () => {
+        day.value = key;
+        model.selectedIndex = 0;
+        day.dispatchEvent(new Event('change'));
+        byId('window-title').scrollIntoView({ block: 'start' });
+        byId('window-title').focus({ preventScroll: true });
+      });
+    }
+    byId('weekend-days').append(card);
+  }
+  byId('weekend').hidden = false;
 }
 
 async function loadForecast() {
@@ -264,6 +331,7 @@ async function loadForecast() {
   byId('coverage').hidden = false;
   for (const date of dates) day.add(new Option(dayFormat.format(new Date(date + 'T12:00:00Z')), date));
   const blend = blendedRows(Object.values(data.models));
+  showWeekend(data, blend, dates);
   if (models.length > 1) model.add(new Option('Blended forecast', BLEND));
   for (const id of models) model.add(new Option(modelLabel(id), id));
   day.disabled = model.disabled = false;
