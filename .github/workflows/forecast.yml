@@ -36,10 +36,13 @@ jobs:
           retention-days: 14
           if-no-files-found: error
       - uses: actions/upload-pages-artifact@v3
+        if: ${{ vars.PUBLISH_GITHUB_PAGES == 'true' }}
         with:
           path: site
 
   deploy:
+    # Set PUBLISH_GITHUB_PAGES after configuring Pages to use GitHub Actions.
+    if: ${{ vars.PUBLISH_GITHUB_PAGES == 'true' }}
     permissions:
       pages: write
       id-token: write
