@@ -1,8 +1,9 @@
 """Experimental sailplane dashboard. No operational go/no-go rating."""
 import json, math, statistics, html
 from datetime import datetime
+from shutil import copyfile
 from zoneinfo import ZoneInfo
-from .config import load_sites, load_settings, SITE_DIR
+from .config import load_sites, load_settings, ROOT, SITE_DIR
 from .fetch import fetch_site
 from .sounding import profile, top_of_lift, wstar_ms, FT_PER_M, _val
 from .history import save_run
@@ -33,7 +34,8 @@ def build(fetch=fetch_site, output=SITE_DIR, archive=True):
     now=datetime.now(ZoneInfo('UTC')); payload=dict(generated=now.isoformat(),requested=settings['models'],models=models)
     output.mkdir(parents=True,exist_ok=True)
     (output/'forecast.json').write_text(json.dumps(payload,allow_nan=False))
-    (output/'index.html').write_text(PAGE)
+    (output/'index.html').write_text(PAGE, encoding='utf-8')
+    copyfile(ROOT / 'static' / 'business-ranger.jpg', output / 'business-ranger.jpg')
     if archive: save_run(now.strftime('%Y%m%dT%H%M'),payload)
     return payload
 
@@ -42,7 +44,7 @@ PAGE = '''<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Springfield Soaring Forecast</title>
+<title>Ranger’s Weather Prediction for KVSF · Springfield Soaring Forecast</title>
 <style>
 :root{color-scheme:light;--ink:#142e39;--muted:#48616a;--line:#dce7e8;--teal:#12665c;--paper:#f3f7f6}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,sans-serif}a{color:var(--teal)}
@@ -58,13 +60,23 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 .thermal-window{padding:20px;margin-bottom:18px;border-left:4px solid #49a597}.thermal-window h2{margin:0;font-size:1.08rem}.window-time{font-size:clamp(1.25rem,3vw,1.75rem);font-weight:750;margin:6px 0 2px;letter-spacing:-.035em}.thermal-window p:not(.window-time){font-size:.87rem;color:var(--muted);margin:5px 0}.thermal-window details{font-size:.83rem;color:var(--muted);margin-top:8px}.thermal-window summary{cursor:pointer}.window-hour td:first-child{box-shadow:inset 3px 0 #49a597,1px 0 var(--line)}
 
 .weekend{margin-bottom:18px}.weekend-header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:9px}.weekend-header h2{margin:0;font-size:1.25rem}.weekend-header p,.weekend-card p,.flight-log p{margin:4px 0;color:var(--muted);font-size:.85rem}.weekend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekend-card{padding:15px 17px;border-top:3px solid #49a597}.weekend-card h3{margin:0;font-size:.94rem}.weekend-card .weekend-time{font-size:1.08rem;color:var(--ink);font-weight:700;margin-top:5px}.weekend-card button{background:#e8f2f0;color:var(--teal);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font:inherit;font-size:.82rem;font-weight:700;cursor:pointer;margin-top:8px}.weekend-card button:focus-visible{outline:3px solid #168377;outline-offset:3px}.flight-log{margin-top:18px;padding:14px 17px}.flight-log summary{font-weight:700;cursor:pointer}.flight-log a{display:inline-block;margin-top:5px}@media(max-width:520px){.weekend-grid{gap:8px}.weekend-card{padding:10px}.weekend-card .weekend-time{font-size:1rem}}
+
+.hero .weather-desk{display:grid;grid-template-columns:minmax(0,1fr) clamp(170px,24vw,276px);align-items:center;gap:clamp(18px,5vw,62px)}.hero h1{font-size:clamp(2.45rem,5.7vw,4.7rem)}.hero h1 span{color:#c4f2e5}.hero .ranger-line{color:#e7f5f2;font-size:clamp(.95rem,1.7vw,1.12rem);margin:16px 0 0}.ranger-portrait{margin:0;overflow:hidden;border-radius:16px;background:#0e2e38;border:1px solid #b8e8dc65;box-shadow:0 16px 40px #071e2860}.ranger-portrait img{display:block;width:100%;height:auto;aspect-ratio:1.15;object-fit:cover;object-position:center 42%}.ranger-portrait figcaption{padding:10px 12px;line-height:1.25}.ranger-portrait strong,.ranger-portrait small{display:block}.ranger-portrait small{color:#b8e8dc;margin-top:3px}
+@media(max-width:560px){.hero .weather-desk{grid-template-columns:minmax(0,1fr) clamp(92px,27vw,145px);gap:12px}.hero h1{font-size:clamp(1.7rem,6.2vw,2.55rem)}.hero .location{font-size:.65rem;margin-bottom:9px}.hero .ranger-line{font-size:.82rem;margin-top:10px}.hero .updated{font-size:.76rem;margin-top:10px}.ranger-portrait{border-radius:10px}.ranger-portrait img{aspect-ratio:1}.ranger-portrait figcaption{padding:6px}.ranger-portrait strong{font-size:.73rem}.ranger-portrait small{font-size:.66rem}}
 </style>
 </head>
 <body>
-<header class="hero"><div class="wrap">
-<p class="location">KVSF · Hartness State Airport</p>
-<h1>Springfield Soaring Forecast</h1>
+<header class="hero"><div class="wrap weather-desk">
+<div class="weather-copy">
+<p class="location">Hartness State Airport · Springfield, Vermont</p>
+<h1>Ranger’s weather prediction <span>for KVSF</span></h1>
+<p class="ranger-line">“I sniff out thermals. The models do the math.”</p>
 <p class="updated" id="status" role="status">Loading forecast…</p>
+</div>
+<figure class="ranger-portrait">
+<img src="business-ranger.jpg" width="560" height="560" alt="Business Ranger, a cream-colored dog in a suit and tie">
+<figcaption><strong>Business Ranger</strong><small>KVSF weather dog</small></figcaption>
+</figure>
 </div></header>
 <main class="wrap">
 <section class="weekend" id="weekend" aria-labelledby="weekend-title" hidden>
