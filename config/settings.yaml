@@ -1,0 +1,79 @@
+# ---------------------------------------------------------------------------
+# App settings
+# ---------------------------------------------------------------------------
+
+# Tim's lapse-rate ratings. These are Tim's numbers and are NEVER changed by
+# the app's self-tuning.  Number = (ground temp C - temp C at top of lift)
+#                                   / (top of lift in thousands of feet AGL)
+lapse_ratings:
+  go: 2.8          # 2.8 and up: leave work and go fly
+  maybe: 2.4       # 2.4 - 2.8: maybe
+  stay_at_work: 2.0  # 2.0 - 2.4: stay at work
+  # below 2.0: stay home
+
+# Wind at launch height (mph), all sites unless a site overrides
+wind:
+  light_mph: 3     # 0-3 mph = light (edge directions only count here)
+  strong_mph: 8    # 8-12 = strong, flagged
+  max_mph: 12      # over 12 = no-fly
+
+# Hours of the day (local time) the app looks at. Each site's thermal_hour
+# in sites.yaml overrides lapse_hour and flying_start.
+hours:
+  lapse_hour: 13        # hour whose sounding is used for Tim's number
+  flying_start: 12      # wind/rain checked from this hour...
+  flying_end: 16        # ...to this hour
+  heating_hour: 14      # peak heating, used to find top of lift
+
+# Prime New England XC season
+prime_months: [5, 6, 7, 8]
+
+# Weather models (Open-Meteo names) - roughly the set Windy shows.
+#   ncep_rrfs_conus = RRFS, NOAA's replacement for the HRRR (~3.5 days)
+#   gfs_hrrr        = HRRR (~2 days; being retired - dropped automatically when gone)
+#   gfs_global      = plain GFS (gfs_seamless would blend HRRR in and count it twice)
+#   ecmwf_ifs025    = ECMWF (Windy's default model)
+#   icon_seamless   = ICON (German model, also on Windy)
+#   gem_seamless    = GEM (Canadian model)
+# A model that Open-Meteo stops serving is skipped automatically.
+models:
+  - ncep_rrfs_conus
+  - gfs_hrrr
+  - gfs_global
+  - ecmwf_ifs025
+  - icon_seamless
+  - gem_seamless
+  - ecmwf_aifs025
+  - ukmo_global_deterministic_10km
+  - ncep_nam_conus
+  - ncep_rap_conus
+
+forecast_days: 7
+
+# Buoyancy/Shear ratio (turbulence), RASP / XC Skies scale
+turbulence:
+  turbulent: 5     # 5 or less: wind likely to blow thermals apart
+  smooth: 7        # 7 and up: well-formed thermals
+
+# Rain (inches) between flying_start and flying_end that knocks a day out
+rain_inches: 0.02
+# CAPE above this with rain in the forecast = overdevelopment risk flag
+od_cape: 1000
+
+# Email alerts
+alerts:
+  # A day 2-4 days out must look like a GO in this many saved runs in a row
+  # (saved runs are ~12 hours apart, even though the page updates hourly)
+  trend_runs: 2
+  lead_min_days: 2
+  lead_max_days: 4
+  # also confirm the night before if it still looks like a GO
+  night_before: true
+
+# Self-tuning (only adjusts the forecast INPUTS, never Tim's formula)
+tuning:
+  window_days: 21     # look back this many days
+  min_samples: 5      # need this many checked days before correcting
+
+page_url: https://weather.nesfsoaring.com/
+repo: "" # set only after creating the new repository

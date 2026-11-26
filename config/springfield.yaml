@@ -1,0 +1,10 @@
+sites:
+  - id: springfield
+    name: Hartness State Airport (KVSF)
+    state: VT
+    lat: 43.3437222
+    lon: -72.5172778
+    launch_ft: 577.5
+    ground_ft: 577.5
+    station: KVSF
+    ushpa: false

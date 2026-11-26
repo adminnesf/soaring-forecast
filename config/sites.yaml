@@ -1,0 +1,198 @@
+# ---------------------------------------------------------------------------
+# New England flying sites
+#
+# Edit this file to tune a site. Everything is in feet, mph and compass
+# degrees (where the wind is coming FROM: 0 = N, 90 = E, 180 = S, 270 = W).
+#
+# lat/lon ............ launch location
+# launch_ft .......... launch elevation, feet above sea level
+# ground_ft .......... valley / LZ elevation, feet above sea level.
+#                      This is the "surface" in Tim's lapse-rate formula, and
+#                      top of lift is measured above it (AGL).
+# windows ............ wind directions that work. Each has from/to degrees.
+#                      light_only: true  -> only counts when wind at launch
+#                                           is in the "light" range (0-3 mph)
+# no_fly ............. directions that are a hard no, with a reason
+# max_mph ............ above this at launch height = no-fly
+# strong_mph ......... above this = flagged "strong" (still shown)
+# station ............ nearby NWS weather station used to check the forecast
+# thermal_hour ....... when thermals typically get going (24 h clock):
+#                      prime = May-Aug, other = rest of the year. Tim's number
+#                      is taken from the sounding at this hour, and the wind
+#                      check starts here.
+#
+# NOTE: coordinates and elevations marked "approx" were estimated and
+# should be checked against a map / your own knowledge.
+# ---------------------------------------------------------------------------
+
+sites:
+
+  - id: burke
+    name: Burke Mt
+    state: VT
+    lat: 44.5708
+    lon: -71.8935
+    launch_ft: 3200      # approx
+    ground_ft: 1200      # approx (East Burke)
+    windows:
+      - {from: 330, to: 30}
+    thermal_hour: {prime: 12, other: 13}   # Tim: noon is good in May-Aug
+    station: KCDA
+    notes: North-facing. Known for smooth evening flights.
+
+  - id: ascutney_north
+    name: Ascutney North (Brownsville Rock)
+    state: VT
+    lat: 43.4440
+    lon: -72.4560
+    launch_ft: 2900      # approx
+    ground_ft: 1000      # approx (Brownsville)
+    windows:
+      - {from: 300, to: 360}                    # NW to N
+      - {from: 285, to: 300, light_only: true}  # ~290 works with light wind
+      - {from: 0, to: 30, light_only: true}     # NNE: only very light days when thermals overpower
+    no_fly:
+      - {from: 255, to: 285, reason: "Due west: tree line on launch makes it turbulent and dangerous (worst at 6-8 mph)"}
+    thermal_hour: {prime: 13, other: 14}   # Tim: ~1-2 pm, sometimes earlier; north face heats late
+    station: KVSF
+    notes: Due west is a no-fly here.
+
+  - id: ascutney_south
+    name: Ascutney South (South Peak)
+    state: VT
+    lat: 43.4370
+    lon: -72.4530
+    launch_ft: 2850      # approx
+    ground_ft: 600       # approx
+    windows:
+      - {from: 160, to: 240}    # Tim: S and SW
+    max_mph: 10
+    strong_mph: 8
+    strong_label: "Ascutney South's limit (8-10 mph)"
+    thermal_hour: {prime: 12, other: 13}   # Tim: south sides can go by noon in prime season
+    station: KVSF
+    notes: Small launch - we really want light winds. The bowl below launch speeds the wind up, so keep it under 8-10 mph.
+
+  - id: west_rutland
+    name: West Rutland
+    state: VT
+    lat: 43.5900
+    lon: -73.0600
+    launch_ft: 1800      # approx
+    ground_ft: 600       # approx
+    windows:
+      - {from: 235, to: 245}                    # Tim: SW, ideal 235-245
+      - {from: 180, to: 235, light_only: true}  # Tim: S to W works in light wind
+      - {from: 245, to: 270, light_only: true}
+    thermal_hour: {prime: 12, other: 13}   # south-ish facing (Claude's guess, check)
+    station: KRUT
+    notes: Good XC site. Launch sits in a gap - wind on launch can be much stronger than forecast (pilots have measured 10 mph above the ridge, 30 mph in the gap).
+
+  - id: mt_tom
+    name: Mt Tom
+    state: MA
+    lat: 42.2440
+    lon: -72.6380
+    launch_ft: 1148
+    ground_ft: 200       # approx
+    windows:
+      - {from: 260, to: 280}
+    max_mph: 8
+    strong_mph: 5
+    strong_label: "Mt Tom's limit (5-8 mph)"
+    thermal_hour: {prime: 13, other: 14}   # west-facing (Claude's guess, check)
+    station: KCEF
+    notes: Cliff launch with a strong compression zone at the edge - pilots get plucked on windy days.
+
+  - id: mohawk_trail
+    name: Mohawk Trail (North Adams)
+    state: MA
+    lat: 42.6880
+    lon: -73.0640
+    launch_ft: 1900      # approx
+    ground_ft: 700       # approx
+    windows:
+      - {from: 215, to: 270}
+    thermal_hour: {prime: 12, other: 13}   # south-ish facing (Claude's guess, check)
+    station: KAQW
+
+  - id: greylock
+    name: Mt Greylock
+    state: MA
+    lat: 42.6376
+    lon: -73.1662
+    launch_ft: 3450      # approx
+    ground_ft: 900       # approx
+    windows:
+      - {from: 75, to: 190}     # Tim: E, SE and S
+    thermal_hour: {prime: 12, other: 13}   # Claude's guess, check
+    station: KAQW
+    notes: State rules have limited flying to weekdays in peak season - check before going. No top landing.
+
+  - id: mansfield
+    name: Mt Mansfield (Stowe)
+    state: VT
+    lat: 44.5305
+    lon: -72.8145
+    launch_ft: 3600      # Tim: launch ~3,600 ft
+    ground_ft: 1000      # approx
+    windows:
+      - {from: 225, to: 270}    # Tim: SW to W (WSW)
+    thermal_hour: {prime: 13, other: 14}   # Claude's guess, check
+    station: KMVL
+    ushpa: false
+    notes: Not a USHPA site.
+
+  - id: sugarbush
+    name: Sugarbush
+    state: VT
+    lat: 44.1360
+    lon: -72.9010
+    launch_ft: 3900      # approx
+    ground_ft: 1000      # approx
+    windows:
+      - {from: 60, to: 120}     # ENE, E, ESE
+    thermal_hour: {prime: 12, other: 13}   # east-facing, heats early (Claude's guess, check)
+    station: KMPV
+
+  - id: moosilauke
+    name: Mt Moosilauke
+    state: NH
+    lat: 44.0244
+    lon: -71.8312
+    launch_ft: 4600      # approx
+    ground_ft: 1200      # approx
+    windows:
+      - {from: 300, to: 330}    # NW for now - Tim will tweak
+    thermal_hour: {prime: 13, other: 14}   # NW-facing (Claude's guess, check)
+    station: KLEB
+
+  - id: mt_washington
+    name: Mt Washington
+    state: NH
+    lat: 44.2701         # VHPA: Auto Road launch
+    lon: -71.3012
+    launch_ft: 6170      # VHPA
+    ground_ft: 1548      # VHPA: Back Lot LZ at the Auto Road entrance
+    windows:
+      - {from: 80, to: 100}     # VHPA ideal window (launch faces 100 deg); calm to moderate E-SE
+    max_mph: 10                 # VHPA PG: min 5, ideal 8, max 10
+    strong_mph: 8
+    strong_label: "Mt Washington's limit (8-10 mph)"
+    thermal_hour: {prime: 12, other: 13}   # Claude's guess, check
+    station: KHIE
+    notes: "VHPA lists this site as inactive (2025) - get your own permission (State Park to launch, Auto Road to land). P4 required. Great Gulf Wilderness is a no-fly zone. Rotor and cloud can come in fast; cloud base is often below launch. Light east at launch can come with strong south in the valley (south wind = turbulence at the LZ). Source: vhga.aero/flying-sites/mount-washington/"
+
+  - id: morningside
+    name: Morningside Flight Park
+    state: NH
+    lat: 43.2450
+    lon: -72.4100
+    launch_ft: 750       # approx
+    ground_ft: 400       # approx
+    windows:
+      - {from: 225, to: 270}                    # SW to W
+      - {from: 270, to: 295, light_only: true}  # a little north of west: light only
+    thermal_hour: {prime: 13, other: 13}   # west-facing (Claude's guess, check)
+    station: KVSF        # Springfield VT (Claremont has no NWS feed)
+    notes: Too much north in the wind doesn't work well.

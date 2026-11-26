@@ -1,0 +1,1 @@
+"""New England paragliding forecast."""
