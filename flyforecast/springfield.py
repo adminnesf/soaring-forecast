@@ -35,7 +35,7 @@ def build(fetch=fetch_site, output=SITE_DIR, archive=True):
     output.mkdir(parents=True,exist_ok=True)
     (output/'forecast.json').write_text(json.dumps(payload,allow_nan=False))
     (output/'index.html').write_text(PAGE, encoding='utf-8')
-    copyfile(ROOT / 'static' / 'business-ranger.jpg', output / 'business-ranger.jpg')
+    copyfile(ROOT / 'static' / 'business-ranger-studio.jpg', output / 'business-ranger-studio.jpg')
     if archive: save_run(now.strftime('%Y%m%dT%H%M'),payload)
     return payload
 
@@ -63,6 +63,8 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 
 .hero .weather-desk{display:grid;grid-template-columns:minmax(0,1fr) clamp(170px,24vw,276px);align-items:center;gap:clamp(18px,5vw,62px)}.hero h1{font-size:clamp(2.45rem,5.7vw,4.7rem)}.hero h1 span{color:#c4f2e5}.hero .ranger-line{color:#e7f5f2;font-size:clamp(.95rem,1.7vw,1.12rem);margin:16px 0 0}.ranger-portrait{margin:0;overflow:hidden;border-radius:16px;background:#0e2e38;border:1px solid #b8e8dc65;box-shadow:0 16px 40px #071e2860}.ranger-portrait img{display:block;width:100%;height:auto;aspect-ratio:1.15;object-fit:cover;object-position:center 42%}.ranger-portrait figcaption{padding:10px 12px;line-height:1.25}.ranger-portrait strong,.ranger-portrait small{display:block}.ranger-portrait small{color:#b8e8dc;margin-top:3px}
 @media(max-width:560px){.hero .weather-desk{grid-template-columns:minmax(0,1fr) clamp(92px,27vw,145px);gap:12px}.hero h1{font-size:clamp(1.7rem,6.2vw,2.55rem)}.hero .location{font-size:.65rem;margin-bottom:9px}.hero .ranger-line{font-size:.82rem;margin-top:10px}.hero .updated{font-size:.76rem;margin-top:10px}.ranger-portrait{border-radius:10px}.ranger-portrait img{aspect-ratio:1}.ranger-portrait figcaption{padding:6px}.ranger-portrait strong{font-size:.73rem}.ranger-portrait small{font-size:.66rem}}
+
+.ranger-quip,.weekend-card .ranger-quip,.thermal-window p.ranger-quip,.metric .ranger-quip{display:block;color:var(--teal);font-size:.8rem;font-weight:650;line-height:1.35;margin:7px 0 4px}.ranger-quip[hidden],.metric .ranger-quip[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -74,7 +76,7 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <p class="updated" id="status" role="status">Loading forecast…</p>
 </div>
 <figure class="ranger-portrait">
-<img src="business-ranger.jpg" width="560" height="560" alt="Business Ranger, a cream-colored dog in a suit and tie">
+<img src="business-ranger-studio.jpg" width="560" height="560" alt="Business Ranger, a cream-colored dog in a suit and tie">
 <figcaption><strong>Business Ranger</strong><small>KVSF weather dog</small></figcaption>
 </figure>
 </div></header>
@@ -90,15 +92,16 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <section class="thermal-window panel" aria-labelledby="window-title">
 <h2 id="window-title" tabindex="-1">Best thermal window</h2>
 <p id="window-time" class="window-time" role="status">Loading forecast…</p>
+<p id="window-quip" class="ranger-quip" hidden></p>
 <p id="window-values" hidden></p>
 <p id="window-support" hidden></p>
 <p id="window-weather" hidden></p>
-<details><summary>How the window is selected</summary><p>The page ranks three consecutive local forecast hours by average W*. In the blended view, a majority of the models available that day must show positive modeled lift and lift height in all three hours. This experimental ranking has no minimum flyable lift threshold and does not estimate flight duration.</p></details>
+<details><summary>How the window is selected</summary><p>The page ranks three consecutive local forecast hours by average W*. In the blended view, a majority of the models available that day must show positive modeled lift and lift height in all three hours. This experimental ranking has no minimum flyable lift threshold and does not estimate flight duration. Ranger’s quips are playful descriptions of modeled conditions.</p></details>
 </section>
 <div class="metrics" aria-label="Selected forecast day summary">
-<div class="metric panel"><span>Peak lift height AGL</span><strong id="lift">—</strong></div>
-<div class="metric panel"><span>Peak W*</span><strong id="thermal">—</strong></div>
-<div class="metric panel"><span>Peak surface wind</span><strong id="wind">—</strong></div>
+<div class="metric panel"><span>Peak lift height AGL</span><strong id="lift">—</strong><small id="lift-quip" class="ranger-quip" hidden></small></div>
+<div class="metric panel"><span>Peak W*</span><strong id="thermal">—</strong><small id="thermal-quip" class="ranger-quip" hidden></small></div>
+<div class="metric panel"><span>Peak surface wind</span><strong id="wind">—</strong><small id="wind-quip" class="ranger-quip" hidden></small></div>
 </div>
 <p class="blend-note" id="blend-note" hidden>Equal-weight median by hour. Only available values contribute. Wind direction uses a circular mean. The count beside each hour is the number of models with an hourly profile.</p>
 <p class="chart-legend" id="chart-legend" hidden>Shaded area shows the lowest to highest model estimate. The line is the median.</p>
@@ -241,8 +244,30 @@ function windowForecast(rows, series) {
   return best;
 }
 
+function rangerQuip(report) {
+  if (!report) return 'The thermals are playing fetch. Ranger hasn’t found them yet.';
+  const { wet, covered } = precipitationCoverage(report.samples);
+  if (wet) return 'Ranger packed an umbrella. Some models show precipitation.';
+  if (report.total >= 3 && report.support / report.total >= 2 / 3 && covered === report.total
+      && report.lift >= 300 && report.height >= 2500) {
+    return 'The models are hinting at a howling thermal day!';
+  }
+  if (report.lift < 120 || report.height < 750) return 'More tail wags than thermals in this run.';
+  return 'Ranger caught a whiff of lift.';
+}
+
+function setPeakQuip(id, rows, key, threshold, above, below) {
+  const values = rows.map(row => row[key]).filter(Number.isFinite);
+  const note = byId(id);
+  note.hidden = values.length === 0;
+  note.textContent = values.length ? (Math.max(...values) >= threshold ? above : below) : '';
+}
+
 function updateThermalWindow(rows, series, isBlend) {
   const best = windowForecast(rows, series);
+  const quip = byId('window-quip');
+  quip.textContent = rangerQuip(best);
+  quip.hidden = !rows.length;
   const values = byId('window-values');
   const support = byId('window-support');
   const weather = byId('window-weather');
@@ -303,6 +328,11 @@ function showWeekend(data, blend, dates) {
     time.className = 'weekend-time';
     time.textContent = report ? report.times[0].slice(11, 16) + '–' + report.times[2].slice(11, 16) + ' local'
       : dates.includes(key) ? 'No clear thermal window' : 'Forecast not available';
+    if (dates.includes(key)) {
+      const quip = card.appendChild(document.createElement('p'));
+      quip.className = 'ranger-quip';
+      quip.textContent = rangerQuip(report);
+    }
     if (report) {
       const averages = card.appendChild(document.createElement('p'));
       averages.textContent = number(report.lift) + ' fpm W* · ' + number(report.height) + ' ft AGL';
@@ -371,6 +401,10 @@ async function loadForecast() {
     showPeak('lift', rows, 'lift_agl', 'ft');
     showPeak('thermal', rows, 'wstar_fpm', 'fpm');
     showPeak('wind', rows, 'wind_kt', 'kt');
+    setPeakQuip('lift-quip', rows, 'lift_agl', 2000, 'Ranger likes the view from up here.', 'Ranger is keeping his ears low.');
+    setPeakQuip('thermal-quip', rows, 'wstar_fpm', 250, 'Ranger’s tail is picking up speed.', 'Easy on the tail wags.');
+    setPeakQuip('wind-quip', rows, 'wind_kt', 15, 'Hold on to your floppy ears.', 'Ranger’s tie might stay straight.');
+
     const body = byId('rows');
     body.replaceChildren();
     if (!rows.length) {
