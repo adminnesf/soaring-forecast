@@ -9,33 +9,32 @@ on:
 permissions: {}
 
 concurrency:
-  group: data-writer
+  group: forecast
   cancel-in-progress: false
 
 jobs:
   forecast:
     permissions:
-      contents: write
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - name: Run forecast
-        run: python -m flyforecast.springfield
-      - name: Prune forecast snapshots older than 14 days
-        run: python -c 'from flyforecast.history import prune_runs; prune_runs(keep_days=14)'
-      - name: Save forecast history
-        run: |
-          git config user.name "flying-forecast-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add data
-          git diff --cached --quiet || git commit -m "Forecast run $(date -u +%Y-%m-%dT%H:%MZ)"
-          git pull --rebase --autostash
-          git push
+        run: python -c 'from flyforecast.springfield import build; build(archive=False)'
+      - name: Retain forecast snapshot for 14 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: forecast-snapshot
+          path: site/forecast.json
+          retention-days: 14
+          if-no-files-found: error
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
