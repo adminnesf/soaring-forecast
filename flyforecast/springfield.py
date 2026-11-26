@@ -74,6 +74,7 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <h1>Ranger’s weather prediction <span>for KVSF</span></h1>
 <p class="ranger-line">“I sniff out thermals. The models do the math.”</p>
 <p class="updated" id="status" role="status">Loading forecast…</p>
+<p class="updated"><strong>Weather refresh schedule.</strong> The site checks for new weather data Wednesday through Saturday at 6:41 a.m., 12:41 p.m., and 6:41 p.m. EST, and Sunday at 6:41 a.m. and 12:41 p.m. EST. During daylight saving time, checks run one hour later. The timestamp above shows when this forecast was generated.</p>
 </div>
 <figure class="ranger-portrait">
 <img src="business-ranger-studio.jpg" width="560" height="560" alt="Business Ranger, a cream-colored dog in a suit and tie">
