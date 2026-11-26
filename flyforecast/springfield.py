@@ -102,6 +102,15 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <p id="window-weather" hidden></p>
 <details><summary>How the window is selected</summary><p>The page ranks three consecutive local forecast hours by average W*. In the blended view, a majority of the models available that day must show positive modeled lift and lift height in all three hours. This experimental ranking has no minimum flyable lift threshold and does not estimate flight duration. Ranger’s quips are playful descriptions of modeled conditions.</p></details>
 </section>
+<section class="panel" aria-labelledby="sounding-title" style="padding:18px;margin:16px 0">
+<h2 id="sounding-title">KVSF forecast sounding</h2>
+<p id="sounding-label" aria-live="polite">Waiting for forecast data…</p>
+<p id="sounding-summary" hidden></p>
+<details id="sounding-detail" hidden><summary>View Skew-T</summary>
+<p>Temperature (red) and dew point (blue) by pressure. Diagonal guides show temperature in °C. Surface values appear in the summary only.</p>
+<svg id="sounding-plot" viewBox="0 0 530 350" role="img" aria-label="Modeled KVSF temperature and dew point on a skewed temperature and logarithmic pressure chart" style="display:block;width:100%;max-width:620px;background:#fff"></svg>
+</details>
+</section>
 <div class="metrics" aria-label="Selected forecast day summary">
 <div class="metric panel"><span>Peak lift height AGL</span><strong id="lift">—</strong><small id="lift-quip" class="ranger-quip" hidden></small></div>
 <div class="metric panel"><span>Peak W*</span><strong id="thermal">—</strong><small id="thermal-quip" class="ranger-quip" hidden></small></div>
@@ -267,6 +276,92 @@ function setPeakQuip(id, rows, key, threshold, above, below) {
   note.textContent = values.length ? (Math.max(...values) >= threshold ? above : below) : '';
 }
 
+function soundingPoints(row) {
+  return (row.profile || []).filter(point => Number.isFinite(point.p) && point.p >= 600 && Number.isFinite(point.t));
+}
+
+function drawSounding(points) {
+  const bottom = Math.max(1000, ...points.map(point => point.p));
+  const top = Math.min(650, ...points.map(point => point.p));
+  const fraction = pressure => Math.log(bottom / pressure) / Math.log(bottom / top);
+  const y = pressure => 316 - 288 * fraction(pressure);
+  const skew = 24;
+  const values = points.flatMap(point => [point.t, point.td].filter(Number.isFinite)
+    .map(value => value + skew * fraction(point.p)));
+  const low = Math.floor((Math.min(...values) - 4) / 10) * 10;
+  const high = Math.ceil((Math.max(...values) + 4) / 10) * 10;
+  const x = (temperature, pressure) => 58 + 446 * (temperature + skew * fraction(pressure) - low) / (high - low);
+  const guides = [];
+  for (let pressure = Math.floor(bottom / 50) * 50; pressure >= top; pressure -= 50) {
+    guides.push('<line x1="58" x2="504" y1="' + y(pressure) + '" y2="' + y(pressure) + '" stroke="#dce7e8"/>');
+    guides.push('<text x="51" y="' + (y(pressure) + 4) + '" text-anchor="end">' + pressure + '</text>');
+  }
+  for (let t = low - 30; t <= high; t += 10) {
+    guides.push('<line x1="' + x(t, bottom) + '" x2="' + x(t, top) + '" y1="316" y2="28" stroke="#dce7e8" clip-path="url(#sounding-clip)"/>');
+    if (t >= low) guides.push('<text x="' + x(t, bottom) + '" y="336" text-anchor="middle">' + t + '°</text>');
+  }
+  const trace = (field, color) => {
+    let path = '';
+    let connected = false;
+    for (const point of points) {
+      if (!Number.isFinite(point[field])) { connected = false; continue; }
+      path += (connected ? ' L ' : ' M ') + x(point[field], point.p) + ' ' + y(point.p);
+      connected = true;
+    }
+    return '<path d="' + path + '" stroke="' + color + '" stroke-width="2.8" fill="none"/>';
+  };
+  byId('sounding-plot').innerHTML = '<defs><clipPath id="sounding-clip"><rect x="58" y="28" width="446" height="288"/></clipPath></defs>' +
+    '<g font-size="12" fill="#142e39"><text x="22" y="18">hPa</text>' + guides.join('') + '</g>' +
+    '<rect x="58" y="28" width="446" height="288" stroke="#9aadb2" fill="none"/>' + trace('t', '#ae2828') + trace('td', '#176297');
+}
+
+function updateSounding(models, selectedModel, selectedDay, windowHours) {
+  const label = byId('sounding-label');
+  const summary = byId('sounding-summary');
+  const detail = byId('sounding-detail');
+  summary.hidden = detail.hidden = true;
+  const middle = [...windowHours][Math.floor(windowHours.size / 2)];
+  const target = middle || selectedDay + 'T13:00';
+  const minutes = time => Number(time.slice(11, 13)) * 60 + Number(time.slice(14, 16));
+  const all = Object.entries(models).flatMap(([id, rows]) => rows
+    .filter(row => row.time.startsWith(selectedDay) && soundingPoints(row).length >= 2)
+    .map(row => ({ id, row })));
+  const available = all.filter(item => selectedModel === BLEND || item.id === selectedModel);
+  available.sort((a, b) => Math.abs(minutes(a.row.time) - minutes(target)) - Math.abs(minutes(b.row.time) - minutes(target)) ||
+    a.row.time.localeCompare(b.row.time) || a.id.localeCompare(b.id));
+  if (!available.length) { label.textContent = 'No usable sounding for this day and model.'; return; }
+  const time = available[0].row.time;
+  const atHour = available.filter(item => item.row.time === time);
+  const heights = all.filter(item => item.row.time === time).map(item => item.row.lift_agl)
+    .filter(Number.isFinite).sort((a, b) => a - b);
+  const mid = Math.floor(heights.length / 2);
+  const median = heights.length % 2 ? heights[mid] : (heights[mid - 1] + heights[mid]) / 2;
+  const distance = item => Number.isFinite(item.row.lift_agl) ? Math.abs(item.row.lift_agl - median) : Infinity;
+  if (selectedModel === BLEND && heights.length) atHour.sort((a, b) => distance(a) - distance(b));
+  const { id, row } = atHour[0];
+  label.textContent = (selectedModel === BLEND ? 'Representative model · ' : '') + modelLabel(id) + ' · ' + time.slice(11, 16) +
+    ' Eastern · ' + (!middle ? 'afternoon snapshot' : time === target ? 'middle hour of thermal window' : 'nearest available hour to window midpoint');
+  const feet = value => Math.round(value).toLocaleString('en-US');
+  const ground = row.profile[0].z;
+  const altitude = point => (point.z - ground) * 3.28084;
+  const inversion = row.profile.find((point, i, points) => i > 0 && altitude(point) <= 6000 && point.t > points[i - 1].t);
+  const notes = [];
+  if (Number.isFinite(row.lift_agl)) notes.push('Modeled top of lift ' + feet(row.lift_agl) + ' ft AGL');
+  if (heights.length > 1) notes.push('Model spread ' + feet(heights[0]) + '–' + feet(heights[heights.length - 1]) + ' ft AGL (' + heights.length + ' models)');
+  if (Number.isFinite(row.lcl_msl)) notes.push('Estimated LCL ' + feet(row.lcl_msl) + ' ft MSL');
+  if (inversion) notes.push('Possible inversion below ' + feet(altitude(inversion)) + ' ft AGL');
+  const winds = row.profile.filter(point => Number.isFinite(point.ws) && Number.isFinite(point.wd));
+  const nearest = [0, 1500, 3500].map(height => winds.reduce((best, point) =>
+    !best || Math.abs(altitude(point) - height) < Math.abs(altitude(best) - height) ? point : best, null));
+  const wind = [...new Set(nearest.filter(Boolean))].map(point => (point.p === null ? 'surface' : feet(altitude(point)) + ' ft AGL') +
+    ' ' + Math.round(point.wd) + '° true at ' + Math.round(point.ws / 1.15078) + ' kt');
+  if (wind.length) notes.push('Wind ' + wind.join(', '));
+  summary.textContent = notes.join(' · ');
+  summary.hidden = !notes.length;
+  drawSounding(soundingPoints(row));
+  detail.hidden = false;
+}
+
 function updateThermalWindow(rows, series, isBlend) {
   const best = windowForecast(rows, series);
   const quip = byId('window-quip');
@@ -415,6 +510,7 @@ async function loadForecast() {
     const daySeries = (isBlend ? Object.values(data.models) : [data.models[model.value]])
       .map(series => series.filter(row => row.time.startsWith(day.value)));
     const windowHours = updateThermalWindow(rows, daySeries, isBlend);
+    updateSounding(data.models, model.value, day.value, windowHours);
     byId('blend-note').hidden = !isBlend;
     byId('lift-band-note').hidden = !isBlend || !rows.some(row => row.spread?.lift_agl);
     byId('thermal-band-note').hidden = !isBlend || !rows.some(row => row.spread?.wstar_fpm);
