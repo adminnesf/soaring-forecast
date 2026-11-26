@@ -72,7 +72,7 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <section class="panel" aria-labelledby="hourly-title">
 <div class="table-head"><h2 id="hourly-title">Hourly forecast</h2></div>
 <div class="scroll" tabindex="0" role="region" aria-label="Scrollable hourly forecast table">
-<table><thead><tr><th scope="col">Local time</th><th scope="col">Lift AGL / MSL ft</th><th scope="col">LCL MSL ft</th><th scope="col">W* kt / fpm</th><th scope="col">Wind kt / true°</th><th scope="col">Crosswind 05/11 kt</th><th scope="col">Rain in</th><th scope="col">CAPE</th></tr></thead><tbody id="rows"></tbody></table>
+<table><thead><tr><th scope="col">Local time</th><th scope="col">Lift AGL / MSL ft</th><th scope="col">LCL MSL ft</th><th scope="col">W* kt / fpm</th><th scope="col">Wind kt / true°</th><th scope="col">Rain in</th><th scope="col">CAPE</th></tr></thead><tbody id="rows"></tbody></table>
 </div></section>
 <footer>Weather data from <a href="https://open-meteo.com/">Open-Meteo</a>. Adapted from <a href="https://github.com/tacoleman69/Newengland-flying-forecast">New England Flying Forecast</a>.</footer>
 </main>
@@ -117,13 +117,13 @@ async function loadForecast() {
     body.replaceChildren();
     if (!rows.length) {
       const cell = body.insertRow().insertCell();
-      cell.colSpan = 8;
+      cell.colSpan = 7;
       cell.textContent = 'No hourly values for this day and model.';
       return;
     }
     for (const row of rows) {
       const tr = body.insertRow();
-      const cells = [row.time.slice(11), [row.lift_agl, row.lift_msl], row.lcl_msl, [row.wstar_kt, row.wstar_fpm], [row.wind_kt, row.wind_dir], [row.crosswind[35], row.crosswind[99]], row.rain_in, row.cape];
+      const cells = [row.time.slice(11), [row.lift_agl, row.lift_msl], row.lcl_msl, [row.wstar_kt, row.wstar_fpm], [row.wind_kt, row.wind_dir], row.rain_in, row.cape];
       for (const value of cells) tr.insertCell().textContent = Array.isArray(value) ? value.map(display).join(' / ') : display(value);
     }
   }
