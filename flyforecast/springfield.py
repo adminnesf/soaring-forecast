@@ -52,6 +52,8 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}.metric{padding:15px 17px;border-top:3px solid #49a597}.metric span{display:block;color:var(--muted);font-size:.82rem;font-weight:650}.metric strong{font-size:clamp(1.2rem,3vw,1.9rem);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
 .table-head{padding:16px 18px 12px}.table-head h2{margin:0;font-size:1.25rem}.scroll{overflow:auto;max-height:590px;border-radius:0 0 18px 18px}table{width:100%;min-width:780px;border-spacing:0;font-variant-numeric:tabular-nums}th,td{text-align:left;padding:11px 13px;white-space:nowrap;border-bottom:1px solid #e6eeed}th{position:sticky;top:0;z-index:2;background:#e8f2f0;color:#254b4c;font-size:.78rem}td{font-size:.9rem;background:#fff}tr:nth-child(even) td{background:#f6faf9}td:first-child,th:first-child{position:sticky;left:0;font-weight:700;box-shadow:1px 0 var(--line)}td:first-child{z-index:1}th:first-child{z-index:3}footer{color:var(--muted);font-size:.82rem;margin:20px 0 0}
 @media(max-width:560px){main.wrap{padding-inline:12px}.controls{padding:13px;gap:9px}.metrics{gap:6px}.metric{padding:9px 8px}.metric span{font-size:.72rem}.table-head{padding:13px}.hero{padding-inline:16px}.scroll{max-height:65vh}}
+
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}.chart{padding:16px;margin:0;min-width:0}.chart h2{font-size:1rem;margin:0}.chart p,.chart-legend,.blend-note{font-size:.83rem;color:var(--muted);margin:4px 0 10px}.chart canvas{display:block;width:100%;height:220px}.chart-legend{margin:0 0 12px}.chart-legend::before{content:'';display:inline-block;width:1.25em;height:.75em;background:#bfdfd9;margin-right:.45em;border-radius:3px}.blend-note{margin:0 0 14px}.sample{display:block;font-size:.7rem;color:var(--muted);font-weight:400}@media(max-width:670px){.charts{grid-template-columns:1fr}.chart canvas{height:195px}}
 </style>
 </head>
 <body>
@@ -69,6 +71,12 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <div class="metric panel"><span>Peak W*</span><strong id="thermal">—</strong></div>
 <div class="metric panel"><span>Peak surface wind</span><strong id="wind">—</strong></div>
 </div>
+<p class="blend-note" id="blend-note" hidden>Equal-weight median by hour. Only available values contribute. Wind direction uses a circular mean. The count beside each hour is the number of models with an hourly profile.</p>
+<p class="chart-legend" id="chart-legend" hidden>Shaded area shows the lowest to highest model estimate. The line is the median.</p>
+<div class="charts">
+<figure class="chart panel"><h2>Modeled top of lift</h2><p>Feet above ground level</p><canvas id="lift-chart" role="img" aria-label="Modeled top of lift by local hour. Values are available in the hourly table."></canvas></figure>
+<figure class="chart panel"><h2>Thermal strength · W*</h2><p>Feet per minute of convective velocity</p><canvas id="thermal-chart" role="img" aria-label="Modeled thermal strength by local hour. Values are available in the hourly table."></canvas></figure>
+</div>
 <section class="panel" aria-labelledby="hourly-title">
 <div class="table-head"><h2 id="hourly-title">Hourly forecast</h2></div>
 <div class="scroll" tabindex="0" role="region" aria-label="Scrollable hourly forecast table">
@@ -84,11 +92,99 @@ const dayFormat = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 's
 const runFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: 'America/New_York' });
 const modelNames = { ncep_rrfs_conus: 'NOAA RRFS', gfs_hrrr: 'NOAA HRRR', gfs_global: 'NOAA GFS', ecmwf_ifs025: 'ECMWF IFS', ecmwf_aifs025: 'ECMWF AIFS', icon_seamless: 'DWD ICON', gem_seamless: 'Canada GEM', ukmo_global_deterministic_10km: 'UK Met Office Global', ncep_nam_conus: 'NOAA NAM', ncep_rap_conus: 'NOAA RAP' };
 const modelLabel = id => modelNames[id] || id;
-const display = value => value ?? '—';
+const display = value => Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 3 }) : value ?? '—';
 
 function showPeak(id, rows, key, unit) {
   const values = rows.map(row => row[key]).filter(Number.isFinite);
   byId(id).textContent = values.length ? Math.max(...values).toLocaleString('en-US') + ' ' + unit : '—';
+}
+
+const BLEND = 'blend';
+const forecastFields = ['lift_agl', 'lift_msl', 'lcl_msl', 'wstar_kt', 'wstar_fpm', 'wind_kt', 'rain_in', 'cape'];
+
+function blendedRows(modelRows) {
+  const hours = new Map();
+  for (const series of modelRows) {
+    for (const row of series) {
+      if (!hours.has(row.time)) hours.set(row.time, []);
+      hours.get(row.time).push(row);
+    }
+  }
+  return [...hours.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([time, rows]) => {
+    const blended = { time, modelCount: rows.length, spread: {} };
+    for (const field of forecastFields) {
+      const values = rows.map(row => row[field]).filter(Number.isFinite).sort((a, b) => a - b);
+      const middle = Math.floor(values.length / 2);
+      if (!values.length) {
+        blended[field] = null;
+        continue;
+      }
+      blended[field] = values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2;
+      if (values.length > 1) blended.spread[field] = [values[0], values[values.length - 1]];
+    }
+    const angles = rows.map(row => row.wind_dir).filter(Number.isFinite).map(deg => deg * Math.PI / 180);
+    const east = angles.reduce((sum, angle) => sum + Math.sin(angle), 0);
+    const north = angles.reduce((sum, angle) => sum + Math.cos(angle), 0);
+    blended.wind_dir = Math.hypot(east, north) > angles.length * 0.1
+      ? (Math.round(Math.atan2(east, north) * 180 / Math.PI) + 360) % 360 : null;
+    return blended;
+  });
+}
+
+function drawChart(id, rows, key, color) {
+  const canvas = byId(id);
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (!width || !height) return;
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  const maxValue = Math.max(0, ...rows.flatMap(row => [row[key], row.spread?.[key]?.[1]]).filter(Number.isFinite));
+  const step = key === 'lift_agl' ? 100 : 25;
+  const tick = Math.max(step, Math.ceil(maxValue / (4 * step)) * step);
+  const left = 48, right = width - 14, top = 12, bottom = height - 29;
+  const x = hour => left + hour / 23 * (right - left);
+  const y = value => bottom - value / (4 * tick) * (bottom - top);
+  const hourOf = row => Number(row.time.slice(11, 13));
+  ctx.font = '11px system-ui';
+  ctx.fillStyle = '#48616a';
+  ctx.strokeStyle = '#dce7e8';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const value = i * tick;
+    ctx.beginPath(); ctx.moveTo(left, y(value)); ctx.lineTo(right, y(value)); ctx.stroke();
+    ctx.fillText(value.toLocaleString('en-US'), left - 7, y(value) + 4);
+  }
+  ctx.textAlign = 'center';
+  for (const hour of [0, 6, 12, 18, 23]) ctx.fillText(String(hour).padStart(2, '0') + ':00', x(hour), height - 8);
+  ctx.fillStyle = '#bfdfd9';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  for (let i = 1; i < rows.length; i++) {
+    const a = rows[i - 1], b = rows[i];
+    if (hourOf(b) - hourOf(a) !== 1) continue;
+    const ar = a.spread?.[key], br = b.spread?.[key];
+    if (!ar || !br) continue;
+    ctx.beginPath(); ctx.moveTo(x(hourOf(a)), y(ar[0])); ctx.lineTo(x(hourOf(b)), y(br[0]));
+    ctx.lineTo(x(hourOf(b)), y(br[1])); ctx.lineTo(x(hourOf(a)), y(ar[1])); ctx.closePath(); ctx.fill();
+  }
+  let previous = null;
+  ctx.fillStyle = color;
+  for (const row of rows) {
+    if (!Number.isFinite(row[key])) { previous = null; continue; }
+    const px = x(hourOf(row)), py = y(row[key]);
+    if (previous && hourOf(row) - hourOf(previous) === 1) {
+      ctx.beginPath(); ctx.moveTo(x(hourOf(previous)), y(previous[key])); ctx.lineTo(px, py); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(px, py, 2.4, 0, Math.PI * 2); ctx.fill();
+    previous = row;
+  }
+  if (!rows.some(row => Number.isFinite(row[key]))) {
+    ctx.fillStyle = '#48616a';
+    ctx.fillText('No model values available', (left + right) / 2, (top + bottom) / 2);
+  }
 }
 
 async function loadForecast() {
@@ -105,11 +201,23 @@ async function loadForecast() {
   byId('coverage-detail').textContent = missing.length ? 'Unavailable: ' + missing.map(modelLabel).join(', ') : 'All requested models returned data.';
   byId('coverage').hidden = false;
   for (const date of dates) day.add(new Option(dayFormat.format(new Date(date + 'T12:00:00Z')), date));
+  const blend = blendedRows(Object.values(data.models));
+  if (models.length > 1) model.add(new Option('Blended forecast', BLEND));
   for (const id of models) model.add(new Option(modelLabel(id), id));
   day.disabled = model.disabled = false;
 
+  let selectedRows = [];
+  function renderCharts() {
+    drawChart('lift-chart', selectedRows, 'lift_agl', '#12665c');
+    drawChart('thermal-chart', selectedRows, 'wstar_fpm', '#395991');
+  }
   function draw() {
-    const rows = data.models[model.value].filter(row => row.time.startsWith(day.value));
+    const isBlend = model.value === BLEND;
+    const rows = (isBlend ? blend : data.models[model.value]).filter(row => row.time.startsWith(day.value));
+    selectedRows = rows;
+    byId('blend-note').hidden = !isBlend;
+    byId('chart-legend').hidden = !isBlend || !rows.some(row => row.spread?.lift_agl || row.spread?.wstar_fpm);
+    renderCharts();
     showPeak('lift', rows, 'lift_agl', 'ft');
     showPeak('thermal', rows, 'wstar_kt', 'kt');
     showPeak('wind', rows, 'wind_kt', 'kt');
@@ -125,10 +233,17 @@ async function loadForecast() {
       const tr = body.insertRow();
       const cells = [row.time.slice(11), [row.lift_agl, row.lift_msl], row.lcl_msl, [row.wstar_kt, row.wstar_fpm], [row.wind_kt, row.wind_dir], row.rain_in, row.cape];
       for (const value of cells) tr.insertCell().textContent = Array.isArray(value) ? value.map(display).join(' / ') : display(value);
+      if (isBlend) {
+        const count = document.createElement('span');
+        count.className = 'sample';
+        count.textContent = row.modelCount + (row.modelCount === 1 ? ' model' : ' models');
+        tr.cells[0].append(count);
+      }
     }
   }
   day.addEventListener('change', draw);
   model.addEventListener('change', draw);
+  new ResizeObserver(renderCharts).observe(byId('lift-chart'));
   draw();
 }
 loadForecast().catch(error => { byId('status').textContent = error.message; });
