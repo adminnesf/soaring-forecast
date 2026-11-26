@@ -35,7 +35,10 @@ def build(fetch=fetch_site, output=SITE_DIR, archive=True):
     output.mkdir(parents=True,exist_ok=True)
     (output/'forecast.json').write_text(json.dumps(payload,allow_nan=False))
     (output/'index.html').write_text(PAGE, encoding='utf-8')
-    copyfile(ROOT / 'static' / 'business-ranger-studio.jpg', output / 'business-ranger-studio.jpg')
+    for portrait in ('business-ranger-studio.jpg', 'business-ranger-rain.jpg', 'business-ranger-wind.jpg'):
+        source = ROOT / 'static' / portrait
+        if source.is_file():
+            copyfile(source, output / portrait)
     if archive: save_run(now.strftime('%Y%m%dT%H%M'),payload)
     return payload
 
@@ -77,7 +80,7 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <p class="updated"><strong>Weather refresh schedule.</strong> The site checks for new weather data Wednesday through Saturday at 6:41 a.m., 12:41 p.m., and 6:41 p.m. EST, and Sunday at 6:41 a.m. and 12:41 p.m. EST. During daylight saving time, checks run one hour later. The timestamp above shows when this forecast was generated.</p>
 </div>
 <figure class="ranger-portrait">
-<img src="business-ranger-studio.jpg" width="560" height="560" alt="Business Ranger, a cream-colored dog in a suit and tie">
+<img id="ranger-banner" src="business-ranger-studio.jpg" width="560" height="560" alt="Business Ranger, a cream-colored dog in a suit and tie">
 <figcaption><strong>Business Ranger</strong><small>KVSF weather dog</small></figcaption>
 </figure>
 </div></header>
@@ -302,6 +305,23 @@ function precipitationCoverage(samples) {
   };
 }
 
+function updateRangerBanner(blend) {
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/New_York' }).format(new Date());
+  const daylightRows = blend.filter(row => row.time.startsWith(today) &&
+    row.time.slice(11, 16) >= '10:00' && row.time.slice(11, 16) <= '17:00');
+  const windy = daylightRows.some(row => Number.isFinite(row.wind_kt) && row.wind_kt >= 20);
+  const rainy = daylightRows.some(row => Number.isFinite(row.rain_in) && row.rain_in >= 0.05);
+  if (!windy && !rainy) return;
+
+  const portrait = byId('ranger-banner');
+  const weatherPortrait = new Image();
+  weatherPortrait.onload = () => {
+    portrait.src = weatherPortrait.src;
+    portrait.alt = windy ? 'Business Ranger being swept sideways by the wind' : 'Business Ranger holding an umbrella in the rain';
+  };
+  weatherPortrait.src = windy ? 'business-ranger-wind.jpg' : 'business-ranger-rain.jpg';
+}
+
 function showWeekend(data, blend, dates) {
   const localParts = new Intl.DateTimeFormat('en-US', {
     year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'America/New_York'
@@ -375,6 +395,7 @@ async function loadForecast() {
   byId('coverage').hidden = false;
   for (const date of dates) day.add(new Option(dayFormat.format(new Date(date + 'T12:00:00Z')), date));
   const blend = blendedRows(Object.values(data.models));
+  updateRangerBanner(blend);
   showWeekend(data, blend, dates);
   if (models.length > 1) model.add(new Option('Blended forecast', BLEND));
   for (const id of models) model.add(new Option(modelLabel(id), id));
