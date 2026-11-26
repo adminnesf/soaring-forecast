@@ -85,6 +85,15 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 </figure>
 </div></header>
 <main class="wrap">
+<section class="thermal-window panel" aria-labelledby="outlook-title">
+<h2 id="outlook-title">Local soaring outlook at KVSF</h2>
+<p id="outlook-date" class="blend-note"></p>
+<div id="outlook-summary" aria-live="polite">
+<p><strong>When</strong> <span id="outlook-when">Loading forecast…</span></p>
+<p><strong>How high</strong> <span id="outlook-height">—</span></p>
+<p><strong>Watch for</strong> <span id="outlook-watch">—</span></p>
+</div>
+</section>
 <section class="weekend" id="weekend" aria-labelledby="weekend-title" hidden>
 <div class="weekend-header"><h2 id="weekend-title">Weekend at KVSF</h2><p id="weekend-updated"></p></div>
 <div class="weekend-grid" id="weekend-days"></div>
@@ -362,8 +371,40 @@ function updateSounding(models, selectedModel, selectedDay, windowHours) {
   detail.hidden = false;
 }
 
-function updateThermalWindow(rows, series, isBlend) {
-  const best = windowForecast(rows, series);
+function updateLocalOutlook(best, rows, dateLabel, modelName, isBlend) {
+  const number = value => Math.round(value).toLocaleString('en-US');
+  const clock = time => {
+    const hour = Number(time.slice(11, 13));
+    const minute = time.slice(14, 16);
+    return (hour % 12 || 12) + (minute === '00' ? '' : ':' + minute) + (hour < 12 ? ' a.m.' : ' p.m.');
+  };
+  byId('outlook-date').textContent = dateLabel + ' · ' + modelName;
+  byId('outlook-when').textContent = best
+    ? 'Best modeled lift from ' + clock(best.times[0]) + ' to ' + clock(best.times[2]) + ' local time.'
+    : rows.length ? 'No clear thermal window in this forecast.' : 'No forecast data for this day and model.';
+
+  const heights = isBlend && best ? best.samples.filter(hours => hours.every(row => Number.isFinite(row?.lift_agl)))
+    .map(hours => hours.reduce((sum, row) => sum + row.lift_agl, 0) / hours.length) : [];
+  const spread = heights.length > 1 ? Math.max(...heights) - Math.min(...heights) : 0;
+  byId('outlook-height').textContent = best ? 'About ' + number(best.height) + ' ft above KVSF during the window.' +
+    (heights.length > 1 ? ' Model estimates span ' + number(Math.min(...heights)) + '–' + number(Math.max(...heights)) + ' ft.' : '')
+    : 'No window-based estimate.';
+
+  const daytime = rows.filter(row => row.time.slice(11, 16) >= '10:00' && row.time.slice(11, 16) <= '17:00');
+  const afternoon = daytime.filter(row => row.time.slice(11, 16) >= '13:00');
+  const winds = afternoon.filter(row => Number.isFinite(row.wind_kt));
+  const peak = winds.reduce((highest, row) => !highest || row.wind_kt > highest.wind_kt ? row : highest, null);
+  const rain = best ? precipitationCoverage(best.samples) : null;
+  let watch = 'Afternoon surface wind data unavailable.';
+  if (peak) watch = 'Afternoon surface wind peaks near ' + number(peak.wind_kt) + ' kt around ' + clock(peak.time) + ' local time.';
+  if (best && isBlend && spread >= 1000) watch = 'Models differ by about ' + number(spread) + ' ft on how high the lift may reach.';
+  if (rain?.wet) watch = isBlend ? rain.wet + ' of ' + rain.covered + ' models with precipitation data show precipitation during the window.'
+    : 'This model shows precipitation during the thermal window.';
+  byId('outlook-watch').textContent = rows.length ? watch : 'Check another day or model.';
+}
+
+function updateThermalWindow(best, rows, isBlend) {
+  
   const quip = byId('window-quip');
   quip.textContent = rangerQuip(best);
   quip.hidden = !rows.length;
@@ -509,7 +550,9 @@ async function loadForecast() {
     byId('window-title').textContent = 'Best thermal window for ' + dateLabel;
     const daySeries = (isBlend ? Object.values(data.models) : [data.models[model.value]])
       .map(series => series.filter(row => row.time.startsWith(day.value)));
-    const windowHours = updateThermalWindow(rows, daySeries, isBlend);
+    const best = windowForecast(rows, daySeries);
+    updateLocalOutlook(best, rows, dateLabel, isBlend ? 'Blended forecast' : modelLabel(model.value), isBlend);
+    const windowHours = updateThermalWindow(best, rows, isBlend);
     updateSounding(data.models, model.value, day.value, windowHours);
     byId('blend-note').hidden = !isBlend;
     byId('lift-band-note').hidden = !isBlend || !rows.some(row => row.spread?.lift_agl);
