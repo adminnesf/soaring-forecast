@@ -54,6 +54,8 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 @media(max-width:560px){main.wrap{padding-inline:12px}.controls{padding:13px;gap:9px}.metrics{gap:6px}.metric{padding:9px 8px}.metric span{font-size:.72rem}.table-head{padding:13px}.hero{padding-inline:16px}.scroll{max-height:65vh}}
 
 .charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}.chart{padding:16px;margin:0;min-width:0}.chart h2{font-size:1rem;margin:0}.chart p,.chart-legend,.blend-note{font-size:.83rem;color:var(--muted);margin:4px 0 10px}.chart canvas{display:block;width:100%;height:220px}.chart-legend{margin:0 0 12px}.chart-legend::before{content:'';display:inline-block;width:1.25em;height:.75em;background:#bfdfd9;margin-right:.45em;border-radius:3px}.blend-note{margin:0 0 14px}.sample{display:block;font-size:.7rem;color:var(--muted);font-weight:400}@media(max-width:670px){.charts{grid-template-columns:1fr}.chart canvas{height:195px}}
+
+.thermal-window{padding:20px;margin-bottom:18px;border-left:4px solid #49a597}.thermal-window h2{margin:0;font-size:1.08rem}.window-time{font-size:clamp(1.25rem,3vw,1.75rem);font-weight:750;margin:6px 0 2px;letter-spacing:-.035em}.thermal-window p:not(.window-time){font-size:.87rem;color:var(--muted);margin:5px 0}.thermal-window details{font-size:.83rem;color:var(--muted);margin-top:8px}.thermal-window summary{cursor:pointer}.window-hour td:first-child{box-shadow:inset 3px 0 #49a597,1px 0 var(--line)}
 </style>
 </head>
 <body>
@@ -66,6 +68,14 @@ main.wrap{padding:0 20px 30px;margin-top:-25px}.panel{background:#fff;border:1px
 <div class="controls panel"><label>Forecast day<select id="day" disabled></select></label><label>Weather model<select id="model" disabled></select></label></div>
 <p class="notice">Experimental v0.2 · Research estimates only. Use an aviation weather briefing for flight decisions. W* is a convective velocity scale. LCL is an estimate. Ridge and wave forecasts are unavailable.</p>
 <details class="models" id="coverage" hidden><summary id="coverage-label">Model coverage</summary><p id="coverage-detail"></p></details>
+<section class="thermal-window panel" aria-labelledby="window-title">
+<h2 id="window-title">Best thermal window</h2>
+<p id="window-time" class="window-time" role="status">Loading forecast…</p>
+<p id="window-values" hidden></p>
+<p id="window-support" hidden></p>
+<p id="window-weather" hidden></p>
+<details><summary>How the window is selected</summary><p>The page ranks three consecutive local forecast hours by average W*. In the blended view, a majority of the models available that day must show positive modeled lift and lift height in all three hours. This experimental ranking has no minimum flyable lift threshold and does not estimate flight duration.</p></details>
+</section>
 <div class="metrics" aria-label="Selected forecast day summary">
 <div class="metric panel"><span>Peak lift height AGL</span><strong id="lift">—</strong></div>
 <div class="metric panel"><span>Peak W*</span><strong id="thermal">—</strong></div>
@@ -187,6 +197,58 @@ function drawChart(id, rows, key, color) {
   }
 }
 
+function windowForecast(rows, series) {
+  const valid = row => row && Number.isFinite(row.wstar_fpm) && row.wstar_fpm > 0
+    && Number.isFinite(row.lift_agl) && row.lift_agl > 0;
+  const byModel = series.filter(modelRows => modelRows.length).map(modelRows => new Map(modelRows.map(row => [row.time, row])));
+  const localMinutes = time => Number(time.slice(11, 13)) * 60 + Number(time.slice(14, 16));
+  let best = null;
+  for (let index = 0; index + 2 < rows.length; index++) {
+    const hours = rows.slice(index, index + 3);
+    const firstMinute = localMinutes(hours[0].time);
+    if (!hours.every((row, offset) => valid(row) && localMinutes(row.time) === firstMinute + offset * 60)) continue;
+    const times = hours.map(row => row.time);
+    const samples = byModel.map(modelRows => times.map(time => modelRows.get(time)));
+    const support = samples.filter(modelHours => modelHours.every(valid)).length;
+    if (support <= byModel.length / 2) continue;
+    const lift = hours.reduce((sum, row) => sum + row.wstar_fpm, 0) / hours.length;
+    const height = hours.reduce((sum, row) => sum + row.lift_agl, 0) / hours.length;
+    if (!best || lift > best.lift || (lift === best.lift && height > best.height)) {
+      best = { times, lift, height, support, total: byModel.length, samples };
+    }
+  }
+  return best;
+}
+
+function updateThermalWindow(rows, series, isBlend) {
+  const best = windowForecast(rows, series);
+  const values = byId('window-values');
+  const support = byId('window-support');
+  const weather = byId('window-weather');
+  values.hidden = support.hidden = weather.hidden = true;
+  if (!best) {
+    byId('window-time').textContent = 'No clear thermal window';
+    return new Set();
+  }
+  const localHour = time => time.slice(11, 16);
+  const rounded = value => Math.round(value).toLocaleString('en-US');
+  byId('window-time').textContent = localHour(best.times[0]) + '–' + localHour(best.times[2]) + ' local · three forecast hours';
+  values.textContent = 'Window averages: ' + rounded(best.lift) + ' fpm W* · ' + rounded(best.height) + ' ft AGL top of lift.';
+  values.hidden = false;
+  if (isBlend) {
+    support.textContent = best.support + ' of ' + best.total + ' available models show positive modeled lift and height in all three hours.';
+    support.hidden = false;
+  }
+  const rain = best.samples.map(modelHours => modelHours.filter(row => Number.isFinite(row?.rain_in)));
+  const wet = rain.filter(modelHours => modelHours.some(row => row.rain_in > 0)).length;
+  const covered = rain.filter(modelHours => modelHours.length > 0).length;
+  if (wet) {
+    weather.textContent = isBlend ? 'Precipitation appears during the window in ' + wet + ' of ' + covered + ' models with precipitation data.' : 'The selected model shows precipitation during the window.';
+    weather.hidden = false;
+  }
+  return new Set(best.times);
+}
+
 async function loadForecast() {
   const response = await fetch('forecast.json');
   if (!response.ok) throw new Error('Forecast data is unavailable.');
@@ -215,6 +277,9 @@ async function loadForecast() {
     const isBlend = model.value === BLEND;
     const rows = (isBlend ? blend : data.models[model.value]).filter(row => row.time.startsWith(day.value));
     selectedRows = rows;
+    const daySeries = (isBlend ? Object.values(data.models) : [data.models[model.value]])
+      .map(series => series.filter(row => row.time.startsWith(day.value)));
+    const windowHours = updateThermalWindow(rows, daySeries, isBlend);
     byId('blend-note').hidden = !isBlend;
     byId('chart-legend').hidden = !isBlend || !rows.some(row => row.spread?.lift_agl || row.spread?.wstar_fpm);
     renderCharts();
@@ -231,6 +296,7 @@ async function loadForecast() {
     }
     for (const row of rows) {
       const tr = body.insertRow();
+      tr.classList.toggle('window-hour', windowHours.has(row.time));
       const cells = [row.time.slice(11), Number.isFinite(row.wstar_fpm) ? Math.round(row.wstar_fpm).toLocaleString('en-US') + ' fpm' : null, [row.wind_kt, row.wind_dir], row.rain_in, row.cape];
       for (const value of cells) tr.insertCell().textContent = Array.isArray(value) ? value.map(display).join(' / ') : display(value);
       if (isBlend) {
