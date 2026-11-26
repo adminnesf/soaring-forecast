@@ -107,6 +107,7 @@ const byId = id => document.getElementById(id);
 const day = byId('day');
 const model = byId('model');
 const dayFormat = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+const windowDateFormat = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 const runFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: 'America/New_York' });
 const modelNames = { ncep_rrfs_conus: 'NOAA RRFS', gfs_hrrr: 'NOAA HRRR', gfs_global: 'NOAA GFS', ecmwf_ifs025: 'ECMWF IFS', ecmwf_aifs025: 'ECMWF AIFS', icon_seamless: 'DWD ICON', gem_seamless: 'Canada GEM', ukmo_global_deterministic_10km: 'UK Met Office Global', ncep_nam_conus: 'NOAA NAM', ncep_rap_conus: 'NOAA RAP' };
 const modelLabel = id => modelNames[id] || id;
@@ -345,8 +346,8 @@ async function loadForecast() {
     const isBlend = model.value === BLEND;
     const rows = (isBlend ? blend : data.models[model.value]).filter(row => row.time.startsWith(day.value));
     selectedRows = rows;
-    const dateLabel = dayFormat.format(new Date(day.value + 'T12:00:00Z'));
-    byId('window-title').textContent = 'Best thermal window · ' + dateLabel;
+    const dateLabel = windowDateFormat.format(new Date(day.value + 'T12:00:00Z'));
+    byId('window-title').textContent = 'Best thermal window for ' + dateLabel;
     const daySeries = (isBlend ? Object.values(data.models) : [data.models[model.value]])
       .map(series => series.filter(row => row.time.startsWith(day.value)));
     const windowHours = updateThermalWindow(rows, daySeries, isBlend);
